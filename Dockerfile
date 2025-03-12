@@ -29,4 +29,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app
 
 # エントリーポイント
-CMD ["python", "app.py"]
+CMD ["python", "app.py", "--host=0.0.0.0"]
