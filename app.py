@@ -1,7 +1,6 @@
 # app.py
 from flask import Flask, request, jsonify, Response, render_template
 from flask_cors import CORS
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -10,6 +9,7 @@ import time
 import uuid
 import json
 import threading
+import os  # osモジュールを追加
 from datetime import datetime
 from queue import Queue, Empty
 import logging
@@ -119,19 +119,6 @@ def extract_messages_from_html(html):
     
     logger.info(f"Extracted {len(messages)} messages")
     
-    # デモメッセージを追加（テスト用、本番では削除可能）
-    #if len(messages) == 0:
-    #    # デモメッセージを追加
-    #    demo_id = str(uuid.uuid4())
-    #    messages.append({
-    #        'id': demo_id,
-    #        'text': '[プレゼントメニュー] 50コイン：テストメッセージ 【TestUser】',
-    #        'type': 'プレゼントメニュー',
-    #        'checked': False,
-    #        'timestamp': datetime.now().isoformat()
-    #    })
-    #    logger.info("Added demo message for testing")
-    
     return messages
 
 def analyze_dom_structure(html):
@@ -181,30 +168,66 @@ def monitor_chat(url, session_id, message_queue, stop_event):
     try:
         # ブラウザの設定
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless=new")  # 新しいヘッドレスモード
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--disable-browser-side-navigation")
+
+        # 重要: レンダラーの問題を回避するための設定
+        chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-infobars")
-        chrome_options.add_argument("--disable-setuid-sandbox")
-        chrome_options.add_argument("--single-process")
-        chrome_options.add_argument("--ignore-certificate-errors")
-        chrome_options.add_argument("--remote-debugging-port=9222")
-        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        chrome_options.add_argument("--mute-audio")
+        chrome_options.add_argument("--disable-browser-side-navigation")
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--disable-features=IsolateOrigins,site-per-process")
+
+        # メモリ使用量を最適化
+        chrome_options.add_argument("--js-flags=--max-old-space-size=512")
         chrome_options.add_argument("--memory-pressure-off")
-        chrome_options.add_argument("--js-flags=--max-old-space-size=1024")
-        chrome_options.page_load_strategy = 'eager'  # DOMContentLoaded イベント時に読み込み完了とみなす
+
+        # 安定性のための設定
+        chrome_options.add_argument("--disable-setuid-sandbox")
+        chrome_options.add_argument("--ignore-certificate-errors")
+        chrome_options.add_argument("--disable-accelerated-2d-canvas")
+        chrome_options.add_argument("--disable-accelerated-jpeg-decoding")
+        chrome_options.add_argument("--disable-accelerated-mjpeg-decode")
+        chrome_options.add_argument("--disable-accelerated-video-decode")
+        chrome_options.add_argument("--disable-gpu-compositing")
+        chrome_options.add_argument("--remote-debugging-port=9222")
+
+        # UAを設定
+        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+        # ページロード戦略を設定
+        chrome_options.page_load_strategy = 'eager'  # DOMContentLoadedイベント時に読み込み完了とみなす
+
+        # 環境変数をチェック
+        chrome_binary = os.environ.get('CHROME_BIN', '/usr/bin/google-chrome')
+        logger.info(f"Using Chrome binary at: {chrome_binary}")
+
+        # バイナリの場所を明示的に設定
+        chrome_options.binary_location = chrome_binary
+
+        # デバッグ情報をログに出力
+        logger.info(f"Chrome options: {', '.join(chrome_options.arguments)}")
 
         # WebDriverの設定
-        # ChromeDriverManagerを使わずに直接バイナリパスを使用
         service = Service("/usr/local/bin/chromedriver")
+        
         # ブラウザ起動前にデバッグログ
-        logger.info("Starting Chrome with binary: /usr/bin/google-chrome")
+        logger.info(f"Starting Chrome with binary: {chrome_binary}")
         logger.info("Using ChromeDriver from: /usr/local/bin/chromedriver")
+        
+        # タイムアウトを長めに設定して起動
         driver = webdriver.Chrome(service=service, options=chrome_options)
+        logger.info("ChromeDriver started successfully")
+        
+        # ブラウザバージョン情報を取得
+        version = driver.capabilities.get('browserVersion', 'unknown')
+        driver_version = driver.capabilities.get('chrome', {}).get('chromedriverVersion', 'unknown')
+        logger.info(f"Chrome version: {version}, ChromeDriver version: {driver_version}")
 
         # URLにアクセス
         driver.get(url)
@@ -221,7 +244,7 @@ def monitor_chat(url, session_id, message_queue, stop_event):
         message_queue.put(initial_messages)
         
         # 最初のロード待機
-        time.sleep(3)  # 5秒→3秒に変更して初期ロードも高速化
+        time.sleep(3)  # 初期ロードも高速化
         
         # 前回の最終チェック時間
         last_check_time = time.time()
@@ -254,7 +277,7 @@ def monitor_chat(url, session_id, message_queue, stop_event):
                     except Exception as js_err:
                         logger.error(f"Error executing scroll script: {str(js_err)}")
                         
-                    time.sleep(2)  # ページロード待機を5秒→2秒に短縮
+                    time.sleep(2)  # ページロード待機時間
                     last_refresh_time = current_time
                     last_check_time = current_time  # チェックタイマーもリセット
                     is_check_time = True  # 強制的にチェック
@@ -299,12 +322,12 @@ def monitor_chat(url, session_id, message_queue, stop_event):
                     last_check_time = current_time
                 
                 # 短い待機で監視ループを継続
-                time.sleep(0.5)  # 待機時間を1秒→0.5秒に短縮
+                time.sleep(0.5)
                 
             except Exception as loop_err:
                 logger.error(f"Error in monitoring loop: {str(loop_err)}")
                 # エラーが発生しても継続
-                time.sleep(1)  # エラー時の待機時間も2秒→1秒に短縮
+                time.sleep(1)
         
         # 監視終了時にブラウザを閉じる
         driver.quit()
