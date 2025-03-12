@@ -152,6 +152,108 @@ def analyze_dom_structure(html):
                 logger.info(f"Class patterns in '{selector}': {class_patterns}")
 
 
+def analyze_dom_structure_enhanced(html):
+    """HTML DOM構造をより詳細に分析し、メッセージ要素のパターンを探す拡張版関数"""
+    soup = BeautifulSoup(html, 'html.parser')
+    analysis_results = {
+        'title': soup.title.text if soup.title else "No title",
+        'potential_containers': [],
+        'element_counts': {},
+        'class_patterns': [],
+        'potential_message_elements': []
+    }
+    
+    # 様々な可能性のあるコンテナセレクターを試す
+    container_selectors = [
+        '.messages', '.chat-messages', '.stream-messages', 
+        '.chat-list', '.message-list', '.comment-list',
+        '[class*="messages"]', '[class*="chat"]', '[class*="comment"]',
+        '.chat-container', '.chat-wrapper', '.stream-chat',
+        '[class*="chatContainer"]', '[class*="chatWrapper"]', '[class*="streamChat"]',
+        '.conversation', '.dialog', '.feed', '.timeline',
+        '[class*="conversation"]', '[class*="dialog"]', '[class*="feed"]', '[class*="timeline"]'
+    ]
+    
+    # 各セレクターに対して検索を実行
+    for selector in container_selectors:
+        containers = soup.select(selector)
+        count = len(containers)
+        analysis_results['element_counts'][selector] = count
+        
+        # コンテナが見つかった場合の詳細分析
+        for idx, container in enumerate(containers[:3]):  # 最初の3つのみ詳細分析
+            children_count = len(container.find_all(recursive=False))
+            
+            # コンテナ情報を追加
+            container_info = {
+                'selector': selector,
+                'index': idx,
+                'children_count': children_count,
+                'class': container.get('class', []),
+                'id': container.get('id', ''),
+                'sample_html': str(container)[:200] + '...' if len(str(container)) > 200 else str(container)
+            }
+            
+            # 子要素があれば最初の子要素を分析
+            if children_count > 0:
+                first_child = container.find(recursive=False)
+                container_info['first_child_class'] = first_child.get('class', [])
+                container_info['first_child_tag'] = first_child.name
+                container_info['first_child_sample'] = str(first_child)[:150] + '...' if len(str(first_child)) > 150 else str(first_child)
+            
+            analysis_results['potential_containers'].append(container_info)
+    
+    # メッセージ要素と思われる要素をピックアップ
+    message_indicators = [
+        '.message', '.chat-message', '.comment', 
+        '.tip-comment', '.user-message', '.system-message',
+        '[class*="message"]', '[class*="comment"]', '[class*="chat-item"]'
+    ]
+    
+    # メッセージ要素を検索
+    for indicator in message_indicators:
+        elements = soup.select(indicator)
+        count = len(elements)
+        analysis_results['element_counts'][indicator] = count
+        
+        # サンプルメッセージ要素を追加
+        for idx, elem in enumerate(elements[:5]):  # 最初の5つのみサンプルとして
+            elem_info = {
+                'selector': indicator,
+                'index': idx,
+                'class': elem.get('class', []),
+                'id': elem.get('id', ''),
+                'text_sample': elem.text[:100].strip() if elem.text else 'No text',
+                'html_sample': str(elem)[:200] + '...' if len(str(elem)) > 200 else str(elem)
+            }
+            analysis_results['potential_message_elements'].append(elem_info)
+    
+    # 全体的なクラスパターンを分析
+    all_elements = soup.find_all(class_=True)
+    class_counter = {}
+    
+    for elem in all_elements:
+        classes = elem.get('class', [])
+        class_str = ' '.join(classes)
+        class_counter[class_str] = class_counter.get(class_str, 0) + 1
+    
+    # 最も頻出するクラスパターントップ20を抽出
+    top_patterns = sorted(class_counter.items(), key=lambda x: x[1], reverse=True)[:20]
+    analysis_results['class_patterns'] = [{'pattern': k, 'count': v} for k, v in top_patterns]
+    
+    # 重要なメタデータを抽出
+    meta_tags = soup.find_all('meta')
+    analysis_results['meta'] = [
+        {'name': meta.get('name', meta.get('property', 'unknown')), 'content': meta.get('content', '')}
+        for meta in meta_tags if meta.get('name') or meta.get('property')
+    ]
+    
+    return analysis_results
+
+    # 使用例
+    # debug_analysis = analyze_dom_structure_enhanced(html)
+    # logger.info(f"Enhanced DOM analysis: {json.dumps(debug_analysis)}")
+
 def monitor_chat(url, session_id, message_queue, stop_event):
     """チャットを監視し、新しいメッセージをキューに追加するバックグラウンド処理"""
     logger.info(f"Starting monitoring for session {session_id} at {url}")
@@ -286,7 +388,81 @@ def monitor_chat(url, session_id, message_queue, stop_event):
                 if is_check_time:
                     # ページのHTMLを取得
                     html = driver.page_source
-                    
+
+                    # デバッグ用に一部のHTMLを保存
+                    try:
+                        debug_path = '/tmp/debug.html'
+                        with open(debug_path, 'w', encoding='utf-8') as f:
+                            f.write(html[:200000])  # 最初の20万文字を保存（十分な量）
+                        logger.info(f"Saved debug HTML to {debug_path}")
+
+                        # 重要なセレクターの出現回数をカウント
+                        count_messages = html.count('class="messages"')
+                        count_message = html.count('class="message"')
+                        count_chat_messages = html.count('class="chat-messages"')
+                        count_tip_comment = html.count('class="tip-comment"')
+                        
+                        logger.info(f"HTML stats - messages: {count_messages}, message: {count_message}, chat-messages: {count_chat_messages}, tip-comment: {count_tip_comment}")
+                    except Exception as write_err:
+                        logger.error(f"Failed to save debug HTML: {str(write_err)}")
+
+                    # ページ全体の構造情報を取得
+                    try:
+                        structure_info = driver.execute_script("""
+                            const allNodes = document.querySelectorAll('div, section, aside');
+                            const classes = {};
+                            for (let i = 0; i < allNodes.length; i++) {
+                                if (allNodes[i].className) {
+                                    const cls = allNodes[i].className.toString();
+                                    classes[cls] = (classes[cls] || 0) + 1;
+                                }
+                            }
+                            
+                            // メッセージ関連の要素を特に探す
+                            const messageContainers = document.querySelectorAll(
+                                '.messages, .chat-messages, .stream-messages, .chat-list, .message-list, ' + 
+                                '.comment-list, [class*="message"], [class*="chat"], [class*="comment"]'
+                            );
+                            
+                            const potentialContainers = [];
+                            for (let i = 0; i < messageContainers.length; i++) {
+                                potentialContainers.push({
+                                    className: messageContainers[i].className,
+                                    childCount: messageContainers[i].children.length,
+                                    html: messageContainers[i].children.length > 0 ? 
+                                        messageContainers[i].children[0].outerHTML.substring(0, 150) : 'No children'
+                                });
+                            }
+                            
+                            return {
+                                title: document.title,
+                                url: window.location.href,
+                                bodyClass: document.body.className,
+                                topClasses: Object.entries(classes)
+                                    .sort((a, b) => b[1] - a[1])
+                                    .slice(0, 20),  // 出現頻度の高い上位20クラス
+                                potentialMessageContainers: potentialContainers
+                            }
+                        """)
+                        logger.info(f"Page structure: {json.dumps(structure_info)}")
+                    except Exception as js_err:
+                        logger.error(f"Failed to analyze page structure: {str(js_err)}")
+
+                    # スクリーンショットを撮影（HTMLだけでは分からない要素の位置関係を確認）
+                    try:
+                        screenshot_path = '/tmp/debug_screenshot.png'
+                        driver.save_screenshot(screenshot_path)
+                        logger.info(f"Saved screenshot to {screenshot_path}")
+                    except Exception as ss_err:
+                        logger.error(f"Failed to take screenshot: {str(ss_err)}")
+
+                    # 拡張DOM分析を実行
+                    try:
+                        debug_analysis = analyze_dom_structure_enhanced(html)
+                        logger.info(f"Enhanced DOM analysis: {json.dumps(debug_analysis)}")
+                    except Exception as analysis_err:
+                        logger.error(f"Failed to perform enhanced DOM analysis: {str(analysis_err)}")
+                        
                     # メッセージを抽出
                     all_messages = extract_messages_from_html(html)
                     
