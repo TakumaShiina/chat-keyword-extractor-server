@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>チャットキーワード抽出ツール</title>
+    <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f8f9fa;
+      color: #1a1a1a;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .top-container {
+      margin-bottom: 16px;
+    }
+
+    .url-input {
+      display: flex;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    .url-input input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .url-input button {
+      padding: 8px 16px;
+      background-color: #0070f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .url-input button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .error {
+      color: red;
+      margin-bottom: 8px;
+    }
+
+    .status {
+      margin-bottom: 8px;
+    }
+
+    .monitoring-active {
+      color: green;
+      font-weight: bold;
+    }
+
+    .monitoring-inactive {
+      color: red;
+    }
+
+    .checkbox-list {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 8px;
+      margin-bottom: 160px;
+      padding-bottom: 20px;
+    }
+
+    .checkbox-item {
+      margin: 8px 0;
+      padding: 12px 16px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      transition: all 0.2s ease;
+    }
+
+    .checkbox-item:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .checkbox-item label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .button-container {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+
+    .filter-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .options-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .filter-option input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .sort-select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+      background-color: white;
+      cursor: pointer;
+    }
+
+    .sort-select:hover {
+      border-color: #aaa;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    button {
+      padding: 10px 20px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      flex: 1;
+    }
+
+    button#removeChecked {
+      background: #4CAF50;
+      color: white;
+    }
+
+    button#reset {
+      background: #f44336;
+      color: white;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .message-group {
+      margin: 8px 0;
+      padding: 12px;
+      background: rgba(255,255,255,0.8);
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .message-group-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .group-check-button {
+      padding: 1px 4px;
+      font-size: 10px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      line-height: 1.2;
+    }
+
+    .group-check-button:hover {
+      background: #45a049;
+      transform: translateY(-1px);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .message-group .checkbox-item {
+      margin: 4px 0;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.5);
+    }
+
+    .message-group .checkbox-item label {
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .message-group .checkbox-item input[type="checkbox"] {
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+    }
+
+    .user-limit-select {
+      padding: 2px 4px;
+      border-radius: 3px;
+      border: 1px solid #ddd;
+      background-color: white;
+      cursor: pointer;
+    }
+    
+    .user-limit-select:hover {
+      border-color: #aaa;
+    }
+
+    /* カスタムスクロールバー */
+    .checkbox-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .checkbox-list::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    .checkbox-list::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 4px;
+    }
+
+    .checkbox-list::-webkit-scrollbar-thumb:hover {
+      background: #a8a8a8;
+    }
+
+    /* 設定ボタン */
+    .config-button {
+      padding: 4px 8px;
+      font-size: 12px;
+      background: #666;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .config-button:hover {
+      background: #555;
+    }
+
+    /* モーダル */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+    }
+
+    .modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-content h2 {
+      margin-bottom: 16px;
+      font-size: 16px;
+    }
+
+    .exclude-words-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .exclude-word-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .exclude-word-item input {
+      flex: 1;
+      padding: 4px 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .modal-buttons button {
+      padding: 6px 12px;
+      font-size: 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #saveExcludeWords {
+      background: #4CAF50;
+      color: white;
+    }
+
+    #closeModal {
+      background: #666;
+      color: white;
+    }
+
+    .user-limit-container {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    /* 件数表示の赤色スタイル */
+    .count-over-limit {
+      color: red;
+      font-weight: bold;
+    }
+
+    /* メッセージタイプごとの色分け */
+    .メッセージ, .message-type.メッセージ {
+      background-color: #e3f2fd;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+
+    .プレゼントメニュー, .message-type.プレゼントメニュー {
+      background-color: #fff9c4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+
+    .エピックゴール, .message-type.エピックゴール {
+      background-color: #ffcdd2;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+
+    .ルーレット, .message-type.ルーレット {
+      background-color: #e8f5e9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+
+    .テスト, .message-type.テスト {
+      background-color: #f3e5f5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+  </style>
+  </head>
+  <body>
+    <div class="top-container">
+      <h1 style="font-size: 1.5rem; margin-bottom: 10px;">チャットキーワード抽出ツール</h1>
+      
+      <div class="url-input">
+        <input
+          id="urlInput"
+          type="text"
+          placeholder="チャットURL（例: https://stripchat.com/username）"
+        />
+        <button id="toggleButton">モニタリング開始</button>
+      </div>
+      
+      <div id="error" class="error"></div>
+      
+      <div class="status">
+        状態: <span id="statusIndicator" class="monitoring-inactive">停止中</span>
+      </div>
+    </div>
+
+    <div id="checkboxList" class="checkbox-list"></div>
+    
+    <div class="button-container">
+      <div class="filter-options">
+        <div class="options-row">
+          <label class="filter-option">
+            <input type="checkbox" id="hideMessages"> メッセージを非表示
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" id="hideEpicGoals"> エピックゴールを非表示
+          </label>
+        </div>
+        <div class="options-row">
+          <label class="filter-option">
+            <input type="checkbox" id="hideExcludedWords"> 除外ワードを非表示
+          </label>
+          <button id="showExcludeWords" class="config-button">除外ワード設定</button>
+        </div>
+        <div class="options-row">
+          <select id="sortMode" class="sort-select">
+            <option value="time">時間順</option>
+            <option value="content">内容でグループ化</option>
+          </select>
+        </div>
+      </div>
+      <div class="action-buttons">
+        <button id="removeChecked">チェック済みの項目を削除</button>
+        <button id="reset">リセット</button>
+      </div>
+    </div>
+    
+    <div id="excludeWordsModal" class="modal">
+      <div class="modal-content">
+        <h2>除外ワード設定</h2>
+        <div class="exclude-words-list">
+          <!-- ここに除外ワード入力フィールドが動的に追加されます -->
+        </div>
+        <div class="modal-buttons">
+          <button id="saveExcludeWords">保存</button>
+          <button id="closeModal">キャンセル</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/monitor.js') }}"></script>
+  </body>
+</html>
