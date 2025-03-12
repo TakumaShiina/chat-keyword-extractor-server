@@ -8,17 +8,20 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 libgbm-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 最新のGoogle Chromeをインストール
-RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && dpkg -i /tmp/google-chrome.deb || apt-get -f install -y \
-    && rm /tmp/google-chrome.deb
+# ChromeとChromeDriverのバージョンを固定
+ENV CHROME_VERSION=134.0.6998.88
 
-# ChromeDriverのバージョンを手動で指定
-ENV CHROMEDRIVER_VERSION=134.0.6998.88
+# 指定されたURLから最新のGoogle Chromeをインストール
+RUN wget -q -O /tmp/chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip" \
+    && unzip /tmp/chrome-linux64.zip -d /opt/ \
+    && ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome \
+    && rm /tmp/chrome-linux64.zip
 
-RUN wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
+# ChromeDriverをインストール
+RUN wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
     && unzip chromedriver-linux64.zip -d /usr/local/bin/ \
-    && rm chromedriver-linux64.zip
+    && mv /usr/local/bin/chromedriver-linux64/chromedriver /usr/local/bin/ \
+    && rm -rf chromedriver-linux64.zip /usr/local/bin/chromedriver-linux64
 
 # Pythonパッケージをインストール
 COPY requirements.txt /app/
@@ -27,6 +30,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # アプリケーションをコピー
 COPY . /app
+
+# Chromeの実行権限を確認
+RUN chmod +x /opt/chrome-linux64/chrome
 
 # エントリーポイント
 CMD ["python", "app.py", "--host=0.0.0.0"]
