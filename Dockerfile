@@ -1,19 +1,19 @@
-FROM python:3.11-slim
+FROM python:3.11
 
 # 必要なパッケージをインストール
 RUN apt-get update && apt-get install -y \
-    wget unzip curl \
+    wget curl unzip \
     libnss3 libgconf-2-4 libxss1 libappindicator3-1 \
     fonts-liberation libasound2 \
-    libgtk-3-0 libgbm-dev \
+    libgtk-3-0 libgbm-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # 最新のGoogle Chromeをインストール
-RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get install -y ./google-chrome.deb \
-    && rm google-chrome.deb
+RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && dpkg -i /tmp/google-chrome.deb || apt-get -f install -y \
+    && rm /tmp/google-chrome.deb
 
-# Chromeのバージョンを取得（正しいChromeDriverのバージョン取得に必要）
+# Chromeのバージョンを取得して対応するChromeDriverをダウンロード
 RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
     && CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION%%.*}") \
     && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
