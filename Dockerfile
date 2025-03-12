@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 libgbm-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ChromeとChromeDriverのバージョンを固定
+# Chromeのバージョンを固定
 ENV CHROME_VERSION=114.0.5735.90
 
-# 指定されたURLから最新のGoogle Chromeをインストール
+# 指定されたURLからGoogle Chromeをインストール
 RUN wget -q -O /tmp/chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip" \
     && unzip /tmp/chrome-linux64.zip -d /opt/ \
     && ln -s /opt/chrome-linux64/chrome /usr/bin/google-chrome \
@@ -32,7 +32,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app
 
 # Chromeの実行権限を確認
-RUN chmod +x /opt/chrome-linux64/chrome
+RUN chmod +x /opt/chrome-linux64/chrome \
+    && chmod +x /usr/local/bin/chromedriver
 
 # エントリーポイント
 CMD ["python", "app.py", "--host=0.0.0.0"]

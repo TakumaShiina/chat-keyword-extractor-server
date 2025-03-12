@@ -188,7 +188,8 @@ def monitor_chat(url, session_id, message_queue, stop_event):
         chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
         # WebDriverの設定
-        service = Service(ChromeDriverManager(driver_version='134.0.7090.71').install())
+        # ChromeDriverManagerを使わずに直接バイナリパスを使用
+        service = Service("/usr/local/bin/chromedriver")
         driver = webdriver.Chrome(service=service, options=chrome_options)
 
         # URLにアクセス
@@ -277,17 +278,6 @@ def monitor_chat(url, session_id, message_queue, stop_event):
                             """)
                             logger.info(f"JavaScript detected {message_count} message elements")
                             
-                            # デバッグメッセージを送信しない
-                            # 元のコードでは以下の部分があった
-                            # if message_count > 0 and len(all_messages) == 0 and (current_time - last_refresh_time) % 10 < 1:
-                            #     debug_messages = [{
-                            #         'id': str(uuid.uuid4()),
-                            #         'text': f'[デバッグ] DOM内に{message_count}件のメッセージ要素を検出しましたが抽出できませんでした 【System】',
-                            #         'type': 'デバッグ',
-                            #         'checked': False,
-                            #         'timestamp': datetime.now().isoformat()
-                            #     }]
-                            #     message_queue.put(debug_messages)
                         except Exception as js_err:
                             logger.error(f"JavaScript execution error: {str(js_err)}")
                     
@@ -419,21 +409,7 @@ def stream(session_id):
                         logger.info("Sending keepalive to client")
                         yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
                         last_message_time = current_time
-                    
-                    # サンプルメッセージ送信コードを削除
-                    # 元のコードでは以下の部分があった
-                    # if current_time - last_sample_time > 10:
-                    #     sample_messages = [{
-                    #         'id': str(uuid.uuid4()),
-                    #         'text': f'[テスト] サンプルメッセージ {datetime.now().strftime("%H:%M:%S")} 【TestUser】',
-                    #         'type': 'テスト',
-                    #         'checked': False,
-                    #         'timestamp': datetime.now().isoformat()
-                    #     }]
-                    #     logger.info("Sending sample message to client")
-                    #     yield f"data: {json.dumps({'type': 'messages', 'messages': sample_messages})}\n\n"
-                    #     last_sample_time = current_time
-                        
+                                            
                 except Exception as e:
                     # その他のエラー
                     logger.error(f"Error in stream generation: {str(e)}")
