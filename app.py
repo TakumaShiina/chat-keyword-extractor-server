@@ -346,7 +346,7 @@ def monitor_chat(url, session_id, message_queue, stop_event):
         message_queue.put(initial_messages)
         
         # 最初のロード待機
-        time.sleep(3)  # 初期ロードも高速化
+        time.sleep(10)  # 初期ロードも高速化
         
         # 前回の最終チェック時間
         last_check_time = time.time()
