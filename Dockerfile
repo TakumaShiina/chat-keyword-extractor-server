@@ -13,15 +13,10 @@ RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-
     && dpkg -i /tmp/google-chrome.deb || apt-get -f install -y \
     && rm /tmp/google-chrome.deb
 
-# Chromeのバージョンを取得
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
-    && echo "Detected Chrome version: $CHROME_VERSION"
+# ChromeDriverのバージョンを手動で指定
+ENV CHROMEDRIVER_VERSION=134.0.6998.88
 
-# ChromeDriverのバージョンを取得してダウンロード
-RUN CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_$(echo $CHROME_VERSION | cut -d. -f1)") \
-    && if [ -z "$CHROMEDRIVER_VERSION" ]; then echo "Failed to retrieve ChromeDriver version"; exit 1; fi \
-    && echo "Detected ChromeDriver version: $CHROMEDRIVER_VERSION" \
-    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
+RUN wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
     && unzip chromedriver-linux64.zip -d /usr/local/bin/ \
     && rm chromedriver-linux64.zip
 
