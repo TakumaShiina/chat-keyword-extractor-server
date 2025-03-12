@@ -1,34 +1,32 @@
-FROM python:3.9
+FROM python:3.11-slim
 
-# 必要なツールをインストール
-RUN apt-get update && apt-get install -y wget gnupg2 unzip apt-transport-https ca-certificates
+# 必要なパッケージをインストール
+RUN apt-get update && apt-get install -y \
+    wget unzip curl \
+    libnss3 libgconf-2-4 libxss1 libappindicator3-1 \
+    fonts-liberation libasound2 \
+    libgtk-3-0 libgbm-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# google-chromeリポジトリを追加
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-RUN echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
+# 最新のGoogle Chromeをインストール
+RUN wget -q -O google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome.deb \
+    && rm google-chrome.deb
 
-# apt-getの更新
-RUN apt-get update
+# Chromeのバージョンを取得（正しいChromeDriverのバージョン取得に必要）
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
+    && CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION%%.*}") \
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
+    && unzip chromedriver-linux64.zip -d /usr/local/bin/ \
+    && rm chromedriver-linux64.zip
 
-# 特定バージョンのChromeをインストール (バージョン120)
-RUN apt-get install -y google-chrome-stable=120.0.6099.* || \
-    (apt-get install -y google-chrome-stable && \
-     apt-get install -f && \
-     apt-mark hold google-chrome-stable)
-
-# Chrome 120に対応するChromeDriverをダウンロード
-RUN wget -O /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.109/linux64/chromedriver-linux64.zip" \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ \
-    && rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64 \
-    && chmod +x /usr/local/bin/chromedriver
+# Pythonパッケージをインストール
+COPY requirements.txt /app/
+WORKDIR /app
+RUN pip install --no-cache-dir -r requirements.txt
 
 # アプリケーションをコピー
-WORKDIR /app
 COPY . /app
 
-# 依存関係インストール
-RUN pip install -r requirements.txt
-
-# アプリケーション実行
-CMD gunicorn app:app
+# エントリーポイント
+CMD ["python", "app.py"]
