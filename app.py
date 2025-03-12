@@ -5,6 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.utils import ChromeType
+from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
 import uuid
@@ -186,9 +188,9 @@ def monitor_chat(url, session_id, message_queue, stop_event):
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        
+
         # WebDriverの設定
-        service = Service(ChromeDriverManager().install())
+        service = Service(ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         # URLにアクセス
