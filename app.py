@@ -188,7 +188,7 @@ def monitor_chat(url, session_id, message_queue, stop_event):
 
         # WebDriverの設定
         service = Service('/usr/local/bin/chromedriver')
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
     
         # URLにアクセス
         driver.get(url)
