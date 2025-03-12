@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Chromeのバージョンを固定
-ENV CHROME_VERSION=114.0.5735.90
+ENV CHROME_VERSION=134.0.6998.88
 
 # 指定されたURLからGoogle Chromeをインストール
 RUN wget -q -O /tmp/chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip" \
